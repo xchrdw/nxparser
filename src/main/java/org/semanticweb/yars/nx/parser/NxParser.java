@@ -77,10 +77,12 @@ public class NxParser implements Iterator<Node[]>, Iterable<Node[]> {
 		loadNext();
 	}
 
+	@Override
 	public boolean hasNext() {
 		return next != null;
 	}
 
+	@Override
 	public Node[] next(){
 		if(next==null)
 			throw new NoSuchElementException();
@@ -183,21 +185,23 @@ public class NxParser implements Iterator<Node[]>, Iterable<Node[]> {
 
 			if (line.charAt(startIndex) == '<') {
 				// resource.
-				endIndex = line.indexOf("> ", startIndex)+1;
+				endIndex = line.indexOf(">", startIndex)+1;
 				if(endIndex==0) throw new ParseException("Could not find closing '>' bracket for resource starting at char "+startIndex+" while parsing line "+line);
 				nx.add(new Resource(line.substring(startIndex, endIndex), true));
 			} else if (line.charAt(startIndex) == '_') {
 				// bnode.
-				endIndex = line.indexOf(' ', startIndex);
+				while(!isNodeDelimiter(line.charAt(endIndex))){
+					endIndex++;
+				};
 				nx.add(new BNode(line.substring(startIndex, endIndex), true));
 			} else if (line.charAt(startIndex) == '.') {
 				// statement's end.
 				if(nx.isEmpty()){
-					throw new ParseException("Exception at position " + startIndex+ " while parsing: '" + line +"'");
+					throw new ParseException("Exception at position " + startIndex + " while parsing: '" + line + "'");
 				}
 				for(int i=startIndex+1; i<line.length(); i++){
 					if(!Character.isWhitespace(line.charAt(i))){
-						throw new ParseException("Exception at position " + i + " while parsing: '" + line +"'");
+						throw new ParseException("Exception at position " + i + " while parsing: '" + line + "'");
 					}
 				}
 				break;
@@ -213,16 +217,21 @@ public class NxParser implements Iterator<Node[]>, Iterable<Node[]> {
 								endIndex - 1)) % 2) == 0));
 				// ^^ if the number of backslashes in front of a quote is even,
 				// the found quote is the literal-delimiting one.
-				while (line.charAt(endIndex) != ' ') {
+				while (!isNodeDelimiter(line.charAt(endIndex))) {
 					++endIndex;
+					if (line.charAt(endIndex) == '<') {
+						endIndex = line.indexOf('>', endIndex);
+					}
 				}
 				nx.add(new Literal(line.substring(startIndex, endIndex), true));
 			} else if(line.charAt(startIndex) == '#' && nx.isEmpty()){
 				// comment line.
 				return new Node[0];
-			} else if (line.charAt(startIndex) == '?') {
+			} else if(line.charAt(startIndex) == '?') {
 				// variable.
-				endIndex = line.indexOf(' ', startIndex);
+				while(!isNodeDelimiter(line.charAt(endIndex))){
+					endIndex++;
+				};
 				nx.add(new Variable(line.substring(startIndex, endIndex), true));
 			} else if (line.charAt(startIndex) == Unbound.TO_STRING.charAt(0)) {
 				// unbound.
@@ -231,19 +240,29 @@ public class NxParser implements Iterator<Node[]>, Iterable<Node[]> {
 						Unbound.TO_STRING)) {
 					nx.add(new Unbound());
 					endIndex = startIndex + Unbound.TO_STRING.length();
-					if(endIndex >= line.length() || line.charAt(endIndex)!=' '){
-						throw new ParseException("Exception at position " + startIndex+ " while parsing: '" + line +"'");
+					if(endIndex >= line.length() || !isNodeDelimiter(line.charAt(endIndex))){
+						throw new ParseException("Exception at position " + startIndex + " while parsing: '" + line + "'");
 					}
 				} else{
-					throw new ParseException("Exception at position " + endIndex+ " while parsing: '" + line +"'");
+					throw new ParseException("Exception at position " + endIndex + " while parsing: '" + line + "'");
 				}
 			} else{
-				throw new ParseException("Exception at position " + endIndex+ " while parsing: '" + line +"'");
+				throw new ParseException("Exception at position " + endIndex + " while parsing: '" + line + "'");
 			}
 
-			startIndex = endIndex + 1;
+			startIndex = endIndex;
 		}
 		return nx.toArray(new Node[nx.size()]);
+	}
+
+	/**
+	 * Checks if the character delimits a node
+	 * 
+	 * @param c the character
+	 * @return true if c is whitespace or a '.'
+	 */
+	private static boolean isNodeDelimiter(char c) {
+		return c == ' ' || c == '\t' || c == '.';
 	}
 
 	/**
@@ -533,7 +552,7 @@ public class NxParser implements Iterator<Node[]>, Iterable<Node[]> {
 	@Deprecated
 	public static String unescape(String str, boolean clean) {
 		return NxUtil.unescape(str, clean);
-	}	
+	}
 	
 	public static void main(String[] args) throws ParseException{
 		System.err.println(Nodes.toN3(parseNodes("")));
